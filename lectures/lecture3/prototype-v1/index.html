@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SNSタイムマネージャー</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface2: #273549;
+      --border: #334155;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #6366f1;
+      --accent-light: #818cf8;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 1rem 1rem 4rem;
+    }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      padding: 2rem 1rem 1.5rem;
+    }
+    .header h1 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-light), #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .header .date {
+      color: var(--muted);
+      font-size: 0.875rem;
+      margin-top: 0.4rem;
+    }
+    .btn-reset {
+      margin-top: 0.75rem;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.4rem 0.9rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .btn-reset:hover { color: var(--danger); border-color: var(--danger); }
+
+    /* ── Stats row ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
+      max-width: 860px;
+      margin: 0 auto 2rem;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+      text-align: center;
+    }
+    .stat-card .val {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--accent-light);
+    }
+    .stat-card .lbl {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 0.2rem;
+    }
+
+    /* ── Main layout ── */
+    .main {
+      max-width: 860px;
+      margin: 0 auto;
+      display: grid;
+      gap: 2rem;
+    }
+    .section-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 0.9rem;
+    }
+
+    /* ── Platform grid ── */
+    .platforms-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+      gap: 1rem;
+    }
+
+    /* ── Platform card ── */
+    .platform-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.25rem;
+      transition: border-color 0.2s;
+    }
+    .platform-card.is-active { border-color: var(--accent); }
+    .platform-card.is-over   { border-color: var(--danger); }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.9rem;
+    }
+    .card-emoji {
+      font-size: 1.4rem;
+      width: 2.5rem;
+      height: 2.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface2);
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+    .card-name { font-weight: 600; font-size: 0.95rem; }
+    .card-status { font-size: 0.72rem; color: var(--muted); margin-top: 0.15rem; }
+
+    .timer {
+      font-size: 2rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+      margin: 0.5rem 0 0.9rem;
+      letter-spacing: 0.02em;
+      transition: color 0.3s;
+    }
+    .timer.running { color: var(--accent-light); }
+    .timer.over    { color: var(--danger); }
+
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    .progress-track {
+      height: 8px;
+      background: var(--surface2);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 99px;
+      transition: width 0.4s ease, background-color 0.3s;
+    }
+
+    .limit-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 0.85rem 0 0.75rem;
+    }
+    .limit-row label { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+    .limit-input {
+      width: 64px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 0.28rem 0.45rem;
+      font-size: 0.875rem;
+      text-align: center;
+    }
+    .limit-input:focus { outline: none; border-color: var(--accent); }
+    .limit-unit { font-size: 0.75rem; color: var(--muted); }
+
+    .btn-row { display: flex; gap: 0.5rem; }
+    .btn {
+      flex: 1;
+      padding: 0.55rem 0.9rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: filter 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.96); }
+    .btn-start { background: var(--accent); color: #fff; }
+    .btn-start:hover { filter: brightness(1.15); }
+    .btn-stop  { background: var(--danger); color: #fff; }
+    .btn-stop:hover  { filter: brightness(1.15); }
+    .btn-del {
+      flex: 0;
+      padding: 0.55rem 0.75rem;
+      background: var(--surface2);
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-del:hover { background: #3f1515; color: var(--danger); border-color: var(--danger); }
+
+    /* ── Add card ── */
+    .add-card {
+      background: var(--surface);
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      padding: 1.25rem;
+    }
+    .add-card-title { font-weight: 600; font-size: 0.9rem; margin-bottom: 1rem; }
+    .add-form { display: grid; gap: 0.65rem; }
+    .add-row  {
+      display: grid;
+      grid-template-columns: 72px 1fr 90px;
+      gap: 0.5rem;
+    }
+    .form-input {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 0.55rem 0.7rem;
+      font-size: 0.875rem;
+    }
+    .form-input:focus { outline: none; border-color: var(--accent); }
+    .form-input::placeholder { color: var(--muted); }
+    .btn-add {
+      background: var(--success);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.55rem 1.1rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: filter 0.15s, transform 0.1s;
+    }
+    .btn-add:hover  { filter: brightness(1.12); }
+    .btn-add:active { transform: scale(0.96); }
+
+    /* ── Chart ── */
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+    }
+    .chart-inner { max-width: 380px; margin: 0 auto; }
+    .empty-chart {
+      text-align: center;
+      color: var(--muted);
+      padding: 2.5rem 1rem;
+      font-size: 0.875rem;
+    }
+
+    /* ── Achievement ── */
+    .achievement {
+      display: none;
+      align-items: center;
+      gap: 1rem;
+      background: linear-gradient(135deg, #1a2f4a, var(--surface));
+      border: 1px solid #2563eb;
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      font-size: 0.875rem;
+    }
+    .achievement.show { display: flex; }
+    .ach-icon { font-size: 1.5rem; flex-shrink: 0; }
+    .ach-text { color: var(--muted); }
+    .ach-text strong { color: var(--text); }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      background: var(--danger);
+      color: #fff;
+      padding: 0.75rem 1.1rem;
+      border-radius: 10px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      display: none;
+      z-index: 1000;
+      animation: slide-in 0.3s ease;
+      max-width: 280px;
+    }
+    @keyframes slide-in {
+      from { transform: translateX(110%); opacity: 0; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+
+    @media (max-width: 540px) {
+      .add-row { grid-template-columns: 62px 1fr; }
+      .add-row input[type=number] { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <h1>📱 SNSタイムマネージャー</h1>
+  <p class="date" id="dateLabel"></p>
+  <button class="btn-reset" onclick="confirmReset()">今日のデータをリセット</button>
+</header>
+
+<div class="stats-row" id="statsRow"></div>
+
+<main class="main">
+  <section>
+    <div class="section-title">SNSプラットフォーム</div>
+    <div class="platforms-grid" id="platformsGrid"></div>
+  </section>
+
+  <section>
+    <div class="section-title">今日の利用内訳</div>
+    <div class="chart-card">
+      <div class="chart-inner">
+        <canvas id="usageChart" style="display:none"></canvas>
+        <div class="empty-chart" id="emptyChart">まだ利用記録がありません<br>▶ ボタンで計測を始めましょう</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="achievement" id="achievementBanner">
+    <div class="ach-icon" id="achIcon"></div>
+    <div class="ach-text" id="achText"></div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ──────────────────────────────────────────
+// Default platforms
+// ──────────────────────────────────────────
+const DEFAULTS = [
+  { id: 'tiktok',    name: 'TikTok',    emoji: '🎵', limitMin: 30, color: '#fe2c55' },
+  { id: 'instagram', name: 'Instagram', emoji: '📸', limitMin: 30, color: '#c13584' },
+  { id: 'twitter',   name: 'Twitter/X', emoji: '🐦', limitMin: 20, color: '#1da1f2' },
+  { id: 'youtube',   name: 'YouTube',   emoji: '▶️', limitMin: 60, color: '#ff0000' },
+];
+
+const CARD_COLORS = ['#8b5cf6','#06b6d4','#10b981','#f97316','#ec4899','#84cc16'];
+
+// ──────────────────────────────────────────
+// State
+// ──────────────────────────────────────────
+let state = {
+  platforms: [],
+  todayUsage: {},    // { id: seconds }
+  activeSessions: {},// { id: startTimestamp }
+  lastDate: null,
+};
+
+let chartObj = null;
+let toastTimer = null;
+const alerted = new Set();
+
+// ──────────────────────────────────────────
+// Persistence
+// ──────────────────────────────────────────
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+}
+
+function load() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('sns-mgr') || 'null');
+    if (saved) {
+      state = saved;
+      if (state.lastDate !== todayStr()) {
+        state.todayUsage = {};
+        state.activeSessions = {};
+        state.lastDate = todayStr();
+      }
+    } else {
+      reset();
+    }
+  } catch { reset(); }
+}
+
+function reset() {
+  state.platforms = DEFAULTS.map(p => ({ ...p }));
+  state.todayUsage = {};
+  state.activeSessions = {};
+  state.lastDate = todayStr();
+}
+
+function save() {
+  localStorage.setItem('sns-mgr', JSON.stringify(state));
+}
+
+// ──────────────────────────────────────────
+// Timer helpers
+// ──────────────────────────────────────────
+function liveSeconds(id) {
+  const base = state.todayUsage[id] || 0;
+  const s    = state.activeSessions[id];
+  return s ? base + Math.floor((Date.now() - s) / 1000) : base;
+}
+
+function fmt(s) {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+
+function barColor(pct) {
+  if (pct < 70) return '#22c55e';
+  if (pct < 90) return '#f59e0b';
+  return '#ef4444';
+}
+
+// ──────────────────────────────────────────
+// Session actions
+// ──────────────────────────────────────────
+function toggle(id) {
+  if (state.activeSessions[id]) stopSession(id);
+  else startSession(id);
+}
+
+function startSession(id) {
+  state.activeSessions[id] = Date.now();
+  alerted.delete(id);
+  save();
+  renderAll();
+  requestNotifPermission();
+}
+
+function stopSession(id) {
+  const s = state.activeSessions[id];
+  if (!s) return;
+  state.todayUsage[id] = (state.todayUsage[id] || 0) + Math.floor((Date.now() - s) / 1000);
+  delete state.activeSessions[id];
+  save();
+  renderAll();
+}
+
+// ──────────────────────────────────────────
+// Notifications
+// ──────────────────────────────────────────
+function requestNotifPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function notifyLimit(name) {
+  showToast(`⏰ ${name} の制限時間を超えました！`);
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('SNSタイムマネージャー', { body: `${name} の制限時間を超えました！` });
+  }
+}
+
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.display = 'block';
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+
+// ──────────────────────────────────────────
+// Render — full
+// ──────────────────────────────────────────
+function renderAll() {
+  renderDate();
+  renderStats();
+  renderPlatforms();
+  renderChart();
+  renderAchievement();
+}
+
+function renderDate() {
+  const d = new Date();
+  document.getElementById('dateLabel').textContent =
+    `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
+
+function renderStats() {
+  let totalSec = 0, overCount = 0, savedSec = 0;
+  state.platforms.forEach(p => {
+    const used  = liveSeconds(p.id);
+    const limit = p.limitMin * 60;
+    totalSec += used;
+    if (used >= limit) overCount++;
+    else savedSec += limit - used;
+  });
+  const tm = Math.floor(totalSec / 60);
+  const sm = Math.floor(savedSec  / 60);
+
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card">
+      <div class="val">${Math.floor(tm/60)}h ${tm%60}m</div>
+      <div class="lbl">今日の合計</div>
+    </div>
+    <div class="stat-card">
+      <div class="val" style="color:${overCount > 0 ? 'var(--danger)' : 'var(--success)'}">
+        ${overCount > 0 ? overCount + '個超過' : 'All OK ✓'}
+      </div>
+      <div class="lbl">制限チェック</div>
+    </div>
+    <div class="stat-card">
+      <div class="val" style="color:var(--success)">${sm}分</div>
+      <div class="lbl">節約できた時間</div>
+    </div>
+    <div class="stat-card">
+      <div class="val">${state.platforms.length}</div>
+      <div class="lbl">管理中のSNS</div>
+    </div>
+  `;
+}
+
+function renderPlatforms() {
+  const grid = document.getElementById('platformsGrid');
+  grid.innerHTML = '';
+
+  state.platforms.forEach(p => {
+    const used   = liveSeconds(p.id);
+    const limit  = p.limitMin * 60;
+    const pct    = Math.min(100, Math.round((used / limit) * 100));
+    const active = !!state.activeSessions[p.id];
+    const over   = used >= limit;
+
+    if (over && active && !alerted.has(p.id)) {
+      alerted.add(p.id);
+      notifyLimit(p.name);
+    }
+
+    const card = document.createElement('div');
+    card.className = `platform-card${active ? ' is-active' : ''}${over ? ' is-over' : ''}`;
+    card.dataset.pid = p.id;
+
+    card.innerHTML = `
+      <div class="card-top">
+        <div class="card-emoji">${p.emoji}</div>
+        <div>
+          <div class="card-name">${p.name}</div>
+          <div class="card-status">${active ? '⏱ 計測中...' : over ? '⛔ 制限超過' : '待機中'}</div>
+        </div>
+      </div>
+
+      <div class="timer${active ? ' running' : ''}${over ? ' over' : ''}" data-timer="${p.id}">
+        ${fmt(used)}
+      </div>
+
+      <div class="progress-meta">
+        <span data-used="${p.id}">${Math.floor(used/60)}分使用</span>
+        <span data-pct="${p.id}">${pct}% / ${p.limitMin}分制限</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" data-bar="${p.id}"
+          style="width:${pct}%;background:${barColor(pct)}"></div>
+      </div>
+
+      <div class="limit-row">
+        <label>制限時間</label>
+        <input class="limit-input" type="number" value="${p.limitMin}" min="1" max="480"
+          onchange="updateLimit('${p.id}', this.value)">
+        <span class="limit-unit">分</span>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn ${active ? 'btn-stop' : 'btn-start'}" onclick="toggle('${p.id}')">
+          ${active ? '⏹ 停止' : '▶ 開始'}
+        </button>
+        <button class="btn btn-del" onclick="removePlatform('${p.id}')" title="削除">🗑</button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
+  // Add platform card
+  const addCard = document.createElement('div');
+  addCard.className = 'add-card';
+  addCard.innerHTML = `
+    <div class="add-card-title">➕ プラットフォームを追加</div>
+    <div class="add-form">
+      <div class="add-row">
+        <input class="form-input" id="newEmoji" placeholder="絵文字" maxlength="4" value="📱">
+        <input class="form-input" id="newName"  placeholder="アプリ名 (例: LINE)">
+        <input class="form-input" id="newLimit" type="number" placeholder="制限(分)" value="30" min="1">
+      </div>
+      <button class="btn-add" onclick="addPlatform()">追加する</button>
+    </div>
+  `;
+  grid.appendChild(addCard);
+}
+
+function renderChart() {
+  const canvas = document.getElementById('usageChart');
+  const empty  = document.getElementById('emptyChart');
+
+  const labels = [], data = [], colors = [];
+  state.platforms.forEach(p => {
+    const used = liveSeconds(p.id);
+    if (used > 0) {
+      labels.push(`${p.emoji} ${p.name}`);
+      data.push(Math.round(used / 60));
+      colors.push(p.color);
+    }
+  });
+
+  if (data.length === 0) {
+    canvas.style.display = 'none';
+    empty.style.display  = 'block';
+    if (chartObj) { chartObj.destroy(); chartObj = null; }
+    return;
+  }
+
+  canvas.style.display = 'block';
+  empty.style.display  = 'none';
+
+  if (chartObj) {
+    chartObj.data.labels = labels;
+    chartObj.data.datasets[0].data = data;
+    chartObj.data.datasets[0].backgroundColor = colors;
+    chartObj.update('none');
+    return;
+  }
+
+  chartObj = new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: colors,
+        borderColor: '#1e293b',
+        borderWidth: 3,
+        hoverOffset: 8,
+      }]
+    },
+    options: {
+      responsive: true,
+      animation: { duration: 400 },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { color: '#94a3b8', font: { size: 12 }, padding: 16 }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.label}: ${ctx.parsed}分`
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderAchievement() {
+  const banner = document.getElementById('achievementBanner');
+  const icon   = document.getElementById('achIcon');
+  const text   = document.getElementById('achText');
+
+  let overCount = 0, savedMin = 0, hasUsage = false;
+  state.platforms.forEach(p => {
+    const used = liveSeconds(p.id);
+    if (used > 0) hasUsage = true;
+    if (used >= p.limitMin * 60) overCount++;
+    else savedMin += Math.floor((p.limitMin * 60 - used) / 60);
+  });
+
+  if (!hasUsage) {
+    banner.classList.remove('show');
+    return;
+  }
+
+  banner.classList.add('show');
+  if (overCount === 0) {
+    icon.textContent = '🎉';
+    text.innerHTML = `<strong>すべて制限内！</strong><br>今日は約 <strong>${savedMin}分</strong> を他のことに使えます！`;
+    banner.style.borderColor = '#2563eb';
+  } else {
+    icon.textContent = '⚠️';
+    text.innerHTML = `<strong>制限を超えているSNSがあります。</strong><br>少しスマホを置いてみましょう 💪`;
+    banner.style.borderColor = 'var(--danger)';
+  }
+}
+
+// ──────────────────────────────────────────
+// Tick — lightweight update (no DOM rebuild)
+// ──────────────────────────────────────────
+function tick() {
+  const activeIds = Object.keys(state.activeSessions);
+  if (activeIds.length === 0) return;
+
+  activeIds.forEach(id => {
+    const p = state.platforms.find(p => p.id === id);
+    if (!p) return;
+    const used  = liveSeconds(id);
+    const limit = p.limitMin * 60;
+    const pct   = Math.min(100, Math.round((used / limit) * 100));
+    const over  = used >= limit;
+
+    if (over && !alerted.has(id)) {
+      alerted.add(id);
+      notifyLimit(p.name);
+    }
+
+    const timerEl = document.querySelector(`[data-timer="${id}"]`);
+    if (timerEl) {
+      timerEl.textContent = fmt(used);
+      timerEl.className = `timer running${over ? ' over' : ''}`;
+    }
+    const barEl = document.querySelector(`[data-bar="${id}"]`);
+    if (barEl) {
+      barEl.style.width = `${pct}%`;
+      barEl.style.backgroundColor = barColor(pct);
+    }
+    const usedEl = document.querySelector(`[data-used="${id}"]`);
+    if (usedEl) usedEl.textContent = `${Math.floor(used/60)}分使用`;
+    const pctEl = document.querySelector(`[data-pct="${id}"]`);
+    if (pctEl) pctEl.textContent = `${pct}% / ${p.limitMin}分制限`;
+  });
+
+  renderStats();
+}
+
+// ──────────────────────────────────────────
+// Actions
+// ──────────────────────────────────────────
+function updateLimit(id, val) {
+  const p = state.platforms.find(p => p.id === id);
+  if (p) { p.limitMin = Math.max(1, parseInt(val) || 30); save(); }
+  renderStats();
+  renderAchievement();
+}
+
+function removePlatform(id) {
+  if (state.activeSessions[id]) stopSession(id);
+  state.platforms   = state.platforms.filter(p => p.id !== id);
+  delete state.todayUsage[id];
+  alerted.delete(id);
+  save();
+  renderAll();
+}
+
+function addPlatform() {
+  const emoji    = (document.getElementById('newEmoji').value.trim() || '📱');
+  const name     = document.getElementById('newName').value.trim();
+  const limitMin = parseInt(document.getElementById('newLimit').value) || 30;
+  if (!name) { showToast('アプリ名を入力してください'); return; }
+  const id    = 'c' + Date.now();
+  const color = CARD_COLORS[state.platforms.length % CARD_COLORS.length];
+  state.platforms.push({ id, name, emoji, limitMin, color });
+  save();
+  renderAll();
+}
+
+function confirmReset() {
+  if (!confirm('今日のデータをリセットしますか？')) return;
+  state.todayUsage    = {};
+  state.activeSessions = {};
+  alerted.clear();
+  if (chartObj) { chartObj.destroy(); chartObj = null; }
+  save();
+  renderAll();
+}
+
+// ──────────────────────────────────────────
+// Init
+// ──────────────────────────────────────────
+load();
+renderAll();
+requestNotifPermission();
+
+setInterval(tick, 1000);
+// Sync chart every 10 s without full rebuild
+setInterval(() => {
+  if (Object.keys(state.activeSessions).length > 0) renderChart();
+}, 10000);
+</script>
+</body>
+</html>
