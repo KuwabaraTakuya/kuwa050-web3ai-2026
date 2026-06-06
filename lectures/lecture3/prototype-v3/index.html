@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SNSタイムマネージャー v3</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f172a; --surface: #1e293b; --surface2: #273549;
+      --border: #334155; --text: #f1f5f9; --muted: #94a3b8;
+      --accent: #6366f1; --accent-light: #818cf8;
+      --success: #22c55e; --warning: #f59e0b; --danger: #ef4444;
+      --focus: #06b6d4;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg); color: var(--text); min-height: 100vh;
+    }
+
+    /* ── Login ── */
+    .login-screen {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 1rem; background: var(--bg);
+    }
+    .login-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 24px; padding: 2.5rem 2rem; max-width: 480px; width: 100%;
+      text-align: center;
+    }
+    .login-card h1 {
+      font-size: 1.6rem; font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-light), #a78bfa);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      margin-bottom: 0.4rem;
+    }
+    .login-card .sub { color: var(--muted); font-size: 0.875rem; margin-bottom: 2rem; }
+    .login-label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); text-align: left; margin-bottom: 0.6rem; }
+    .login-input {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text); padding: 0.7rem 1rem; font-size: 1rem;
+      margin-bottom: 1.5rem; text-align: center;
+    }
+    .login-input:focus { outline: none; border-color: var(--accent); }
+    .login-input::placeholder { color: var(--muted); }
+    .avatar-grid {
+      display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.4rem; margin-bottom: 1.5rem;
+    }
+    .avatar-btn {
+      font-size: 1.5rem; aspect-ratio: 1; border-radius: 10px; border: 2px solid transparent;
+      background: var(--surface2); cursor: pointer; transition: transform 0.1s, border-color 0.15s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .avatar-btn:hover { transform: scale(1.1); }
+    .avatar-btn.selected { border-color: var(--accent-light); background: rgba(99,102,241,0.15); }
+    .btn-login {
+      width: 100%; background: linear-gradient(135deg, var(--accent), #7c3aed);
+      color: #fff; border: none; border-radius: 10px;
+      padding: 0.8rem; font-size: 1rem; font-weight: 700; cursor: pointer;
+      transition: filter 0.15s, transform 0.1s;
+    }
+    .btn-login:hover { filter: brightness(1.1); }
+    .btn-login:active { transform: scale(0.98); }
+
+    /* ── Main UI ── */
+    #mainUI { padding: 0 1rem 4rem; }
+
+    /* Header */
+    .header { max-width: 900px; margin: 0 auto; padding: 1.5rem 0 1rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; }
+    .header-left { display: flex; align-items: center; gap: 0.75rem; }
+    .header-avatar { font-size: 1.8rem; width: 2.8rem; height: 2.8rem; background: var(--surface); border: 1px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .header-info {}
+    .header-title {
+      font-size: 1.3rem; font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-light), #a78bfa);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .header-name { font-size: 0.8rem; color: var(--muted); }
+    .header-right { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+    .streak-badge {
+      background: linear-gradient(135deg, #f59e0b, #f97316);
+      color: #fff; padding: 0.2rem 0.65rem; border-radius: 99px; font-size: 0.75rem; font-weight: 700;
+    }
+    .header-date { color: var(--muted); font-size: 0.8rem; }
+    .btn-sm {
+      background: transparent; color: var(--muted); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.3rem 0.75rem; font-size: 0.78rem; cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .btn-sm:hover { color: var(--danger); border-color: var(--danger); }
+
+    /* Stats */
+    .stats-row {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 0.75rem; max-width: 900px; margin: 0 auto 1.5rem;
+    }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1rem; text-align: center; }
+    .stat-card .val { font-size: 1.35rem; font-weight: 700; color: var(--accent-light); }
+    .stat-card .lbl { font-size: 0.7rem; color: var(--muted); margin-top: 0.2rem; }
+
+    /* Tabs */
+    .tabs { display: flex; max-width: 900px; margin: 0 auto 1.5rem; border-bottom: 1px solid var(--border); overflow-x: auto; }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab-btn {
+      background: none; border: none; color: var(--muted);
+      padding: 0.55rem 0.9rem; font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+      transition: color 0.15s, border-color 0.15s; white-space: nowrap; flex-shrink: 0;
+    }
+    .tab-btn.active { color: var(--accent-light); border-bottom-color: var(--accent-light); }
+    .tab-btn:hover:not(.active) { color: var(--text); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* Layout */
+    .main { max-width: 900px; margin: 0 auto; display: grid; gap: 1.75rem; }
+    .section-title { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.9rem; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* Platform cards */
+    .platforms-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+    .platform-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 1.25rem; transition: border-color 0.2s; }
+    .platform-card.is-active { border-color: var(--accent); }
+    .platform-card.is-over   { border-color: var(--danger); }
+    .platform-card.is-warn   { border-color: var(--warning); }
+    .card-top { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.9rem; }
+    .card-emoji { font-size: 1.4rem; width: 2.5rem; height: 2.5rem; display: flex; align-items: center; justify-content: center; background: var(--surface2); border-radius: 10px; flex-shrink: 0; }
+    .card-name { font-weight: 600; font-size: 0.95rem; }
+    .card-status { font-size: 0.72rem; color: var(--muted); margin-top: 0.15rem; }
+    .timer { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; margin: 0.5rem 0 0.9rem; letter-spacing: 0.02em; transition: color 0.3s; }
+    .timer.running { color: var(--accent-light); }
+    .timer.warning { color: var(--warning); }
+    .timer.over    { color: var(--danger); }
+    .progress-meta { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--muted); margin-bottom: 0.35rem; }
+    .progress-track { height: 8px; background: var(--surface2); border-radius: 99px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 99px; transition: width 0.4s ease, background-color 0.3s; }
+    .limit-row { display: flex; align-items: center; gap: 0.5rem; margin: 0.85rem 0 0.75rem; }
+    .limit-row label { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+    .limit-input { width: 64px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 0.28rem 0.45rem; font-size: 0.875rem; text-align: center; }
+    .limit-input:focus { outline: none; border-color: var(--accent); }
+    .limit-unit { font-size: 0.75rem; color: var(--muted); }
+    .btn-row { display: flex; gap: 0.5rem; }
+    .btn { flex: 1; padding: 0.55rem 0.9rem; border: none; border-radius: 8px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: filter 0.15s, transform 0.1s; }
+    .btn:active { transform: scale(0.96); }
+    .btn-start { background: var(--accent); color: #fff; }
+    .btn-start:hover { filter: brightness(1.15); }
+    .btn-stop  { background: var(--danger); color: #fff; }
+    .btn-stop:hover  { filter: brightness(1.15); }
+    .btn-del { flex: 0; padding: 0.55rem 0.75rem; background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+    .btn-del:hover { background: #3f1515; color: var(--danger); border-color: var(--danger); }
+    .btn-locked { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+    /* Add card */
+    .add-card { background: var(--surface); border: 2px dashed var(--border); border-radius: 16px; padding: 1.25rem; }
+    .add-card-title { font-weight: 600; font-size: 0.9rem; margin-bottom: 1rem; }
+    .add-form { display: grid; gap: 0.65rem; }
+    .add-row { display: grid; grid-template-columns: 72px 1fr 90px; gap: 0.5rem; }
+    .form-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 0.55rem 0.7rem; font-size: 0.875rem; }
+    .form-input:focus { outline: none; border-color: var(--accent); }
+    .form-input::placeholder { color: var(--muted); }
+    .btn-add { background: var(--success); color: #fff; border: none; border-radius: 8px; padding: 0.55rem 1.1rem; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: filter 0.15s, transform 0.1s; }
+    .btn-add:hover { filter: brightness(1.12); }
+    .btn-add:active { transform: scale(0.96); }
+
+    /* Chart card */
+    .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; }
+    .chart-inner { max-width: 360px; margin: 0 auto; }
+    .empty-chart { text-align: center; color: var(--muted); padding: 2.5rem 1rem; font-size: 0.875rem; }
+
+    /* Achievement */
+    .achievement { display: none; align-items: center; gap: 1rem; background: linear-gradient(135deg, #1a2f4a, var(--surface)); border: 1px solid #2563eb; border-radius: 12px; padding: 1rem 1.25rem; font-size: 0.875rem; }
+    .achievement.show { display: flex; }
+    .ach-icon { font-size: 1.5rem; flex-shrink: 0; }
+    .ach-text { color: var(--muted); }
+    .ach-text strong { color: var(--text); }
+
+    /* Focus */
+    .focus-panel { background: linear-gradient(135deg, #0c3a4a, #0f172a); border: 1px solid var(--focus); border-radius: 16px; padding: 1.5rem; }
+    .focus-panel .section-title { color: var(--focus); }
+    .focus-preset-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .focus-preset { background: var(--surface2); border: 1px solid var(--border); border-radius: 99px; color: var(--muted); padding: 0.3rem 0.85rem; font-size: 0.8rem; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+    .focus-preset:hover, .focus-preset.selected { background: var(--focus); color: #fff; border-color: var(--focus); }
+    .focus-controls { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    .focus-active-area { display: none; text-align: center; }
+    .focus-active-area.show { display: block; }
+    .focus-timer { font-size: 3.5rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--focus); letter-spacing: 0.04em; padding: 0.75rem 0; }
+    .focus-message { color: var(--muted); font-size: 0.9rem; margin-bottom: 1rem; }
+    .btn-focus { background: var(--focus); color: #fff; border: none; border-radius: 8px; padding: 0.6rem 1.4rem; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: filter 0.15s, transform 0.1s; }
+    .btn-focus:hover { filter: brightness(1.15); }
+    .btn-focus:active { transform: scale(0.96); }
+    .btn-focus-cancel { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+    .btn-focus-cancel:hover { color: var(--danger); border-color: var(--danger); background: #3f1515; }
+    .focus-stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-top: 1.5rem; }
+    .focus-stat { background: rgba(6,182,212,0.08); border: 1px solid rgba(6,182,212,0.25); border-radius: 10px; padding: 0.75rem; text-align: center; }
+    .focus-stat .val { font-size: 1.2rem; font-weight: 700; color: var(--focus); }
+    .focus-stat .lbl { font-size: 0.7rem; color: var(--muted); margin-top: 0.15rem; }
+
+    /* Todo */
+    .todo-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; }
+    .todo-add-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .todo-input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 0.55rem 0.75rem; font-size: 0.875rem; }
+    .todo-input:focus { outline: none; border-color: var(--accent); }
+    .todo-input::placeholder { color: var(--muted); }
+    .todo-list { display: grid; gap: 0.45rem; }
+    .todo-item { display: flex; align-items: center; gap: 0.65rem; padding: 0.55rem 0.75rem; background: var(--surface2); border-radius: 8px; border: 1px solid var(--border); }
+    .todo-item.done { opacity: 0.45; }
+    .todo-item.done .todo-text { text-decoration: line-through; }
+    .todo-check { width: 1.15rem; height: 1.15rem; border-radius: 50%; border: 2px solid var(--border); cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; transition: background 0.15s, border-color 0.15s; }
+    .todo-item.done .todo-check { background: var(--success); border-color: var(--success); color: #fff; }
+    .todo-text { flex: 1; font-size: 0.875rem; }
+    .todo-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; padding: 0 0.2rem; }
+    .todo-del:hover { color: var(--danger); }
+    .todo-empty { color: var(--muted); font-size: 0.875rem; text-align: center; padding: 1.5rem 0.5rem; }
+
+    /* Log */
+    .log-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; }
+    .log-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 0.75rem; background: var(--surface2); border-radius: 8px; font-size: 0.82rem; margin-bottom: 0.4rem; }
+    .log-emoji { font-size: 1.1rem; flex-shrink: 0; }
+    .log-name  { font-weight: 600; min-width: 85px; }
+    .log-time  { color: var(--muted); flex: 1; }
+    .log-dur   { color: var(--accent-light); font-weight: 700; }
+    .log-empty { color: var(--muted); font-size: 0.875rem; text-align: center; padding: 2rem 0.5rem; }
+
+    /* Weekly */
+    .weekly-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; }
+    .history-day { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1rem; margin-bottom: 0.75rem; }
+    .history-day-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
+
+    /* Settings */
+    .settings-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; }
+    .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.85rem 0; border-bottom: 1px solid var(--border); }
+    .settings-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .settings-row:first-child { padding-top: 0; }
+    .settings-label { font-size: 0.875rem; }
+    .settings-desc { font-size: 0.75rem; color: var(--muted); margin-top: 0.15rem; }
+    .settings-input { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 0.35rem 0.6rem; font-size: 0.875rem; width: 90px; text-align: center; }
+    .settings-input:focus { outline: none; border-color: var(--accent); }
+
+    /* Toggle switch */
+    .toggle { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; background: var(--border); border-radius: 99px; cursor: pointer; transition: background 0.2s; }
+    .toggle-slider::before { content: ''; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: transform 0.2s; }
+    .toggle input:checked + .toggle-slider { background: var(--accent); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(20px); }
+
+    /* Settings avatar mini grid */
+    .avatar-grid-sm { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    .avatar-btn-sm { font-size: 1.3rem; width: 2.2rem; height: 2.2rem; border-radius: 8px; border: 2px solid transparent; background: var(--surface2); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: border-color 0.15s, transform 0.1s; }
+    .avatar-btn-sm:hover { transform: scale(1.1); }
+    .avatar-btn-sm.selected { border-color: var(--accent-light); background: rgba(99,102,241,0.15); }
+
+    /* Danger zone */
+    .danger-zone { border: 1px solid #3f1515; }
+    .btn-danger { background: var(--danger); color: #fff; border: none; border-radius: 8px; padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: filter 0.15s; }
+    .btn-danger:hover { filter: brightness(1.12); }
+    .btn-export { background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: border-color 0.15s; }
+    .btn-export:hover { border-color: var(--accent-light); color: var(--accent-light); }
+
+    /* Toast */
+    .toast { position: fixed; top: 1rem; right: 1rem; color: #fff; padding: 0.75rem 1.1rem; border-radius: 10px; font-size: 0.875rem; font-weight: 600; display: none; z-index: 9999; animation: slide-in 0.3s ease; max-width: 300px; }
+    .toast.danger  { background: var(--danger); }
+    .toast.success { background: var(--success); }
+    .toast.info    { background: var(--focus); }
+    .toast.warning { background: var(--warning); }
+    @keyframes slide-in { from { transform: translateX(110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    /* Focus ring */
+    .focus-ring { display: none; position: fixed; inset: 0; border: 3px solid var(--focus); pointer-events: none; z-index: 50; animation: pulse-ring 2s infinite; }
+    .focus-ring.active { display: block; }
+    @keyframes pulse-ring { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.8; } }
+
+    @media (max-width: 540px) {
+      .add-row { grid-template-columns: 62px 1fr; }
+      .add-row input[type=number] { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── ログイン画面 ── -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <h1>📱 SNSタイムマネージャー</h1>
+    <p class="sub">SNSをうまくコントロールして時間を取り戻そう</p>
+
+    <div class="login-label">アバターを選ぶ</div>
+    <div class="avatar-grid" id="loginAvatarGrid"></div>
+
+    <div class="login-label">ニックネーム</div>
+    <input class="login-input" id="loginName" placeholder="名前を入力..." maxlength="20"
+      onkeydown="if(event.key==='Enter')doLogin()">
+
+    <button class="btn-login" onclick="doLogin()">はじめる →</button>
+  </div>
+</div>
+
+<!-- ── メインUI ── -->
+<div id="mainUI" style="display:none">
+  <div class="focus-ring" id="focusRing"></div>
+
+  <div style="padding: 0 1rem;">
+    <header class="header">
+      <div class="header-left">
+        <div class="header-avatar" id="headerAvatar"></div>
+        <div class="header-info">
+          <div class="header-title">SNSタイムマネージャー <span style="font-size:0.75rem;opacity:0.6">v3</span></div>
+          <div class="header-name" id="headerName"></div>
+        </div>
+      </div>
+      <div class="header-right">
+        <span class="header-date" id="dateLabel"></span>
+        <span class="streak-badge" id="streakBadge" style="display:none"></span>
+        <button class="btn-sm" onclick="confirmReset()">今日をリセット</button>
+      </div>
+    </header>
+  </div>
+
+  <div class="stats-row" id="statsRow" style="padding: 0 1rem;"></div>
+
+  <div class="tabs" style="padding: 0 1rem;">
+    <button class="tab-btn active" data-tab="today"   onclick="switchTab('today',this)">📊 今日</button>
+    <button class="tab-btn"        data-tab="focus"   onclick="switchTab('focus',this)">🎯 集中</button>
+    <button class="tab-btn"        data-tab="history" onclick="switchTab('history',this)">📅 週間</button>
+    <button class="tab-btn"        data-tab="log"     onclick="switchTab('log',this)">🗒 ログ</button>
+    <button class="tab-btn"        data-tab="settings" onclick="switchTab('settings',this)">⚙️ 設定</button>
+  </div>
+
+  <!-- Tab: 今日 -->
+  <div class="tab-panel active" id="tab-today">
+    <div class="main" style="padding: 0 1rem;">
+      <section>
+        <div class="section-title">SNSプラットフォーム</div>
+        <div class="platforms-grid" id="platformsGrid"></div>
+      </section>
+      <section class="two-col">
+        <div>
+          <div class="section-title">今日の利用内訳</div>
+          <div class="chart-card">
+            <div class="chart-inner">
+              <canvas id="usageChart" style="display:none"></canvas>
+              <div class="empty-chart" id="emptyChart">まだ利用記録がありません<br>▶ ボタンで計測を始めましょう</div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="section-title">今日やること</div>
+          <div class="todo-card" id="todoCard"></div>
+        </div>
+      </section>
+      <div class="achievement" id="achievementBanner">
+        <div class="ach-icon" id="achIcon"></div>
+        <div class="ach-text" id="achText"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab: 集中 -->
+  <div class="tab-panel" id="tab-focus">
+    <div class="main" style="padding: 0 1rem;">
+      <div class="focus-panel">
+        <div class="section-title">🎯 集中モード — SNSを見ない時間を作ろう</div>
+        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1.25rem;">集中モード中は全てのSNSタイマーが開始できなくなります。</p>
+        <div id="focusSetupArea">
+          <div class="focus-preset-row">
+            <button class="focus-preset" onclick="setFocusPreset(15,this)">15分</button>
+            <button class="focus-preset selected" onclick="setFocusPreset(25,this)">25分 🍅</button>
+            <button class="focus-preset" onclick="setFocusPreset(30,this)">30分</button>
+            <button class="focus-preset" onclick="setFocusPreset(45,this)">45分</button>
+            <button class="focus-preset" onclick="setFocusPreset(60,this)">60分</button>
+            <button class="focus-preset" onclick="setFocusPreset(90,this)">90分</button>
+          </div>
+          <div class="focus-controls">
+            <input class="form-input" id="focusMinInput" type="number" value="25" min="1" max="240" style="width:80px;text-align:center;" oninput="clearFocusPreset()">
+            <span style="color:var(--muted);font-size:0.875rem;">分間</span>
+            <button class="btn-focus" onclick="startFocus()">▶ 集中開始</button>
+          </div>
+        </div>
+        <div class="focus-active-area" id="focusActiveArea">
+          <div class="focus-timer" id="focusTimerEl">00:00</div>
+          <div class="focus-message" id="focusMessage">集中してます！💪</div>
+          <button class="btn-focus btn-focus-cancel" onclick="cancelFocus()">⏹ 終了</button>
+        </div>
+        <div class="focus-stats-row">
+          <div class="focus-stat"><div class="val" id="focusTodayCount">0</div><div class="lbl">今日の集中回数</div></div>
+          <div class="focus-stat"><div class="val" id="focusTodayMin">0分</div><div class="lbl">今日の集中時間</div></div>
+          <div class="focus-stat"><div class="val" id="focusTotalCount">0</div><div class="lbl">累計集中回数</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab: 週間 -->
+  <div class="tab-panel" id="tab-history">
+    <div class="main" style="padding: 0 1rem;">
+      <section>
+        <div class="section-title">過去7日間の利用時間（分）</div>
+        <div class="weekly-card">
+          <canvas id="weeklyChart" height="200"></canvas>
+          <div class="empty-chart" id="emptyWeekly" style="display:none">まだ履歴データがありません</div>
+        </div>
+      </section>
+      <section>
+        <div class="section-title">日別詳細</div>
+        <div id="historyDetail"></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Tab: ログ -->
+  <div class="tab-panel" id="tab-log">
+    <div class="main" style="padding: 0 1rem;">
+      <section>
+        <div class="section-title">今日のセッションログ</div>
+        <div class="log-card"><div id="logList"></div></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Tab: 設定 -->
+  <div class="tab-panel" id="tab-settings">
+    <div class="main" style="padding: 0 1rem;">
+
+      <section>
+        <div class="section-title">プロフィール</div>
+        <div class="settings-card">
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">アバター</div>
+              <div class="avatar-grid-sm" id="settingsAvatarGrid" style="margin-top:0.5rem;"></div>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">ニックネーム</div>
+            </div>
+            <div style="display:flex;gap:0.5rem;align-items:center;">
+              <input class="settings-input" id="settingsName" type="text" maxlength="20" style="width:140px;text-align:left;">
+              <button class="btn-add" onclick="saveName()" style="padding:0.35rem 0.75rem;font-size:0.8rem;">保存</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">SNS管理設定</div>
+        <div class="settings-card">
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">制限超過で自動停止</div>
+              <div class="settings-desc">制限時間に達したらタイマーを自動で止める</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="toggleAutoStop" onchange="saveSetting('autoStop',this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">事前警告しきい値</div>
+              <div class="settings-desc">制限の何%で警告を出すか</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:0.4rem;">
+              <input class="settings-input" id="settingsWarnPct" type="number" min="50" max="99" onchange="saveSetting('warnPct',parseInt(this.value))">
+              <span style="font-size:0.78rem;color:var(--muted);">%</span>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">週間SNS目標時間</div>
+              <div class="settings-desc">1週間の合計利用目標（分）</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:0.4rem;">
+              <input class="settings-input" id="settingsWeeklyGoal" type="number" min="0" onchange="saveSetting('weeklyGoalMin',parseInt(this.value))">
+              <span style="font-size:0.78rem;color:var(--muted);">分</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">データ管理</div>
+        <div class="settings-card">
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">データをエクスポート</div>
+              <div class="settings-desc">全データをJSONファイルでダウンロード</div>
+            </div>
+            <button class="btn-export" onclick="exportData()">↓ エクスポート</button>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">アカウント</div>
+        <div class="settings-card danger-zone">
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">ログアウト</div>
+              <div class="settings-desc">データは保持されます</div>
+            </div>
+            <button class="btn-export" onclick="logout()">ログアウト</button>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label" style="color:var(--danger)">全データを削除</div>
+              <div class="settings-desc">取り消せません</div>
+            </div>
+            <button class="btn-danger" onclick="deleteAllData()">削除</button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+</div><!-- /mainUI -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── Constants ───────────────────────────────────────
+const AVATARS = ['😀','😎','🤓','🥳','😴','🧑','👦','👧','🧔','👩','🦁','🐯','🐻','🐼','🦊','🐸','🐧','🦋','🌟','🚀','🎯','🎮','📚','💪'];
+const DEFAULTS = [
+  { id: 'tiktok',    name: 'TikTok',    emoji: '🎵', limitMin: 30, color: '#fe2c55' },
+  { id: 'instagram', name: 'Instagram', emoji: '📸', limitMin: 30, color: '#c13584' },
+  { id: 'twitter',   name: 'Twitter/X', emoji: '🐦', limitMin: 20, color: '#1da1f2' },
+  { id: 'youtube',   name: 'YouTube',   emoji: '▶️', limitMin: 60, color: '#ff0000' },
+];
+const CARD_COLORS = ['#8b5cf6','#06b6d4','#10b981','#f97316','#ec4899','#84cc16'];
+const FOCUS_MESSAGES = ['集中してます！💪','SNSは後で！🚫','あなたならできる！✨','もう少し！🎯','いい調子！⚡','集中の波に乗ってる！🌊'];
+
+// ─── User ────────────────────────────────────────────
+let currentUser = null;
+// { name, avatar, autoStop, warnPct, weeklyGoalMin }
+
+function loadUser() {
+  try { currentUser = JSON.parse(localStorage.getItem('sns-mgr-v3-user') || 'null'); } catch {}
+}
+function saveUser() {
+  localStorage.setItem('sns-mgr-v3-user', JSON.stringify(currentUser));
+}
+
+// ─── State ───────────────────────────────────────────
+let state = {
+  platforms: [], todayUsage: {}, activeSessions: {}, lastDate: null,
+  history: {}, sessionLogs: {}, todos: [], streak: 0,
+  focusEnd: null, focusSessions: {},
+};
+let chartObj = null, weeklyChartObj = null;
+let toastTimer = null, focusInterval = null;
+const alerted = new Set(), warned = new Set();
+let activeTab = 'today';
+
+// ─── Date ────────────────────────────────────────────
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+}
+function dateLabel(str) {
+  const [,m,d] = str.split('-'); return `${m}/${d}`;
+}
+
+// ─── Persistence ─────────────────────────────────────
+function load() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('sns-mgr-v3') || 'null');
+    if (saved) {
+      state = Object.assign({ history:{}, sessionLogs:{}, todos:[], streak:0, focusEnd:null, focusSessions:{} }, saved);
+      if (state.lastDate !== todayStr()) {
+        if (state.lastDate && Object.keys(state.todayUsage).length > 0) {
+          state.history[state.lastDate] = { ...state.todayUsage };
+          updateStreak(); pruneHistory();
+        }
+        state.todayUsage = {}; state.activeSessions = {}; state.lastDate = todayStr();
+      }
+    } else { initDefault(); }
+  } catch { initDefault(); }
+}
+function initDefault() {
+  state.platforms = DEFAULTS.map(p => ({ ...p }));
+  state.todayUsage = {}; state.activeSessions = {}; state.lastDate = todayStr();
+  state.history = {}; state.sessionLogs = {}; state.todos = [];
+  state.streak = 0; state.focusEnd = null; state.focusSessions = {};
+}
+function save() { localStorage.setItem('sns-mgr-v3', JSON.stringify(state)); }
+function updateStreak() {
+  const prevUsage = state.history[state.lastDate] || {};
+  const allOk = state.platforms.every(p => (prevUsage[p.id] || 0) < p.limitMin * 60);
+  state.streak = allOk ? (state.streak || 0) + 1 : 0;
+}
+function pruneHistory() {
+  const keys = Object.keys(state.history).sort();
+  while (keys.length > 14) delete state.history[keys.shift()];
+}
+
+// ─── Login ───────────────────────────────────────────
+let selectedAvatar = AVATARS[0];
+
+function buildLoginAvatarGrid() {
+  const grid = document.getElementById('loginAvatarGrid');
+  grid.innerHTML = AVATARS.map((a,i) => `
+    <button class="avatar-btn${i === 0 ? ' selected' : ''}" onclick="selectAvatar('${a}',this)">${a}</button>
+  `).join('');
+}
+
+function selectAvatar(emoji, el) {
+  selectedAvatar = emoji;
+  document.querySelectorAll('#loginAvatarGrid .avatar-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function doLogin() {
+  const name = document.getElementById('loginName').value.trim();
+  if (!name) { document.getElementById('loginName').style.borderColor = 'var(--danger)'; return; }
+  currentUser = { name, avatar: selectedAvatar, autoStop: false, warnPct: 80, weeklyGoalMin: 200 };
+  saveUser(); showApp();
+}
+
+function showApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('mainUI').style.display = 'block';
+  load(); renderAll(); renderFocusUI(); requestNotifPermission();
+  buildSettingsAvatarGrid();
+  syncSettingsForm();
+  if (state.focusEnd && Date.now() < state.focusEnd) {
+    document.getElementById('focusRing').classList.add('active');
+    startFocusInterval();
+  }
+}
+
+function logout() {
+  if (!confirm('ログアウトしますか？（データは保持されます）')) return;
+  currentUser = null;
+  localStorage.removeItem('sns-mgr-v3-user');
+  document.getElementById('mainUI').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  selectedAvatar = AVATARS[0];
+  buildLoginAvatarGrid();
+  document.getElementById('loginName').value = '';
+}
+
+function deleteAllData() {
+  if (!confirm('全データを完全に削除します。この操作は取り消せません。')) return;
+  localStorage.removeItem('sns-mgr-v3');
+  localStorage.removeItem('sns-mgr-v3-user');
+  location.reload();
+}
+
+// ─── Settings ─────────────────────────────────────────
+function buildSettingsAvatarGrid() {
+  const grid = document.getElementById('settingsAvatarGrid');
+  grid.innerHTML = AVATARS.map(a => `
+    <button class="avatar-btn-sm${a === currentUser.avatar ? ' selected' : ''}" onclick="selectSettingsAvatar('${a}',this)">${a}</button>
+  `).join('');
+}
+
+function selectSettingsAvatar(emoji, el) {
+  currentUser.avatar = emoji;
+  document.querySelectorAll('#settingsAvatarGrid .avatar-btn-sm').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  saveUser(); renderHeader();
+}
+
+function syncSettingsForm() {
+  document.getElementById('settingsName').value = currentUser.name;
+  document.getElementById('toggleAutoStop').checked = currentUser.autoStop;
+  document.getElementById('settingsWarnPct').value = currentUser.warnPct;
+  document.getElementById('settingsWeeklyGoal').value = currentUser.weeklyGoalMin;
+}
+
+function saveName() {
+  const name = document.getElementById('settingsName').value.trim();
+  if (!name) return;
+  currentUser.name = name; saveUser(); renderHeader();
+  showToast('名前を更新しました', 'success');
+}
+
+function saveSetting(key, val) {
+  currentUser[key] = val; saveUser();
+  warned.clear();
+  if (key === 'weeklyGoalMin' && activeTab === 'history') renderWeeklyChart();
+}
+
+function exportData() {
+  const data = { user: currentUser, state, exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `sns-manager-${todayStr()}.json`;
+  a.click();
+  showToast('エクスポートしました', 'success');
+}
+
+// ─── Timer helpers ────────────────────────────────────
+function liveSeconds(id) {
+  const base = state.todayUsage[id] || 0;
+  const s = state.activeSessions[id];
+  return s ? base + Math.floor((Date.now() - s) / 1000) : base;
+}
+function fmt(sec) {
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function barColor(pct) {
+  if (pct < currentUser.warnPct) return '#22c55e';
+  if (pct < 100) return '#f59e0b';
+  return '#ef4444';
+}
+
+// ─── Session actions ──────────────────────────────────
+function toggle(id) {
+  if (state.activeSessions[id]) stopSession(id); else startSession(id);
+}
+function startSession(id) {
+  if (state.focusEnd && Date.now() < state.focusEnd) {
+    showToast('⛔ 集中モード中！SNSを開くのをやめましょう 💪', 'danger'); return;
+  }
+  state.activeSessions[id] = Date.now();
+  alerted.delete(id); warned.delete(id);
+  save(); renderAll(); requestNotifPermission();
+}
+function stopSession(id) {
+  const startTs = state.activeSessions[id]; if (!startTs) return;
+  const duration = Math.floor((Date.now() - startTs) / 1000);
+  state.todayUsage[id] = (state.todayUsage[id] || 0) + duration;
+  if (duration > 0) {
+    const p = state.platforms.find(p => p.id === id);
+    if (p) {
+      if (!state.sessionLogs[todayStr()]) state.sessionLogs[todayStr()] = [];
+      state.sessionLogs[todayStr()].push({ id, name: p.name, emoji: p.emoji, start: startTs, end: Date.now(), duration });
+    }
+  }
+  delete state.activeSessions[id]; save(); renderAll();
+}
+
+// ─── Focus ───────────────────────────────────────────
+let focusMinSelected = 25;
+function setFocusPreset(min, el) {
+  focusMinSelected = min; document.getElementById('focusMinInput').value = min;
+  document.querySelectorAll('.focus-preset').forEach(b => b.classList.remove('selected'));
+  if (el) el.classList.add('selected');
+}
+function clearFocusPreset() {
+  document.querySelectorAll('.focus-preset').forEach(b => b.classList.remove('selected'));
+}
+function startFocus() {
+  const min = parseInt(document.getElementById('focusMinInput').value) || 25;
+  state.focusEnd = Date.now() + min * 60 * 1000;
+  Object.keys(state.activeSessions).forEach(id => stopSession(id));
+  save(); renderFocusUI();
+  document.getElementById('focusRing').classList.add('active');
+  showToast(`🎯 集中開始！${min}分間SNSなし！`, 'info');
+  startFocusInterval(); renderStats();
+}
+function cancelFocus() {
+  state.focusEnd = null;
+  if (focusInterval) { clearInterval(focusInterval); focusInterval = null; }
+  save(); renderFocusUI();
+  document.getElementById('focusRing').classList.remove('active');
+  showToast('集中モードを終了しました', 'info');
+  renderStats(); renderPlatforms();
+}
+function completeFocus() {
+  const today = todayStr();
+  if (!state.focusSessions[today]) state.focusSessions[today] = [];
+  const durMin = parseInt(document.getElementById('focusMinInput').value || focusMinSelected);
+  state.focusSessions[today].push({ start: state.focusEnd - durMin * 60000, end: state.focusEnd, duration: durMin * 60 });
+  state.focusEnd = null;
+  if (focusInterval) { clearInterval(focusInterval); focusInterval = null; }
+  save(); renderFocusUI();
+  document.getElementById('focusRing').classList.remove('active');
+  showToast('🎉 集中完了！よく頑張りました！', 'success');
+  renderStats(); renderPlatforms();
+}
+function startFocusInterval() {
+  if (focusInterval) clearInterval(focusInterval);
+  focusInterval = setInterval(() => {
+    if (!state.focusEnd || Date.now() >= state.focusEnd) { completeFocus(); return; }
+    renderFocusTimer();
+  }, 1000);
+}
+function renderFocusUI() {
+  const isActive = state.focusEnd && Date.now() < state.focusEnd;
+  document.getElementById('focusSetupArea').style.display = isActive ? 'none' : 'block';
+  document.getElementById('focusActiveArea').classList.toggle('show', !!isActive);
+  if (isActive) renderFocusTimer();
+  renderFocusStats();
+}
+function renderFocusTimer() {
+  if (!state.focusEnd) return;
+  const remaining = Math.max(0, Math.floor((state.focusEnd - Date.now()) / 1000));
+  document.getElementById('focusTimerEl').textContent = fmt(remaining);
+  const idx = Math.floor(remaining / 30) % FOCUS_MESSAGES.length;
+  document.getElementById('focusMessage').textContent = FOCUS_MESSAGES[idx];
+}
+function renderFocusStats() {
+  const today = todayStr();
+  const todaySessions = state.focusSessions[today] || [];
+  const todayMin = Math.round(todaySessions.reduce((s,x) => s + x.duration, 0) / 60);
+  const totalCount = Object.values(state.focusSessions).reduce((s,arr) => s + arr.length, 0);
+  document.getElementById('focusTodayCount').textContent = todaySessions.length;
+  document.getElementById('focusTodayMin').textContent   = todayMin + '分';
+  document.getElementById('focusTotalCount').textContent = totalCount;
+}
+
+// ─── Notifications ────────────────────────────────────
+function requestNotifPermission() {
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+}
+function notifyLimit(name) {
+  showToast(`⛔ ${name} が制限を超えました！`);
+  if ('Notification' in window && Notification.permission === 'granted')
+    new Notification('SNSタイムマネージャー', { body: `${name} の制限時間を超えました！` });
+}
+function showToast(msg, type = 'danger') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = `toast ${type}`; el.style.display = 'block';
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.style.display = 'none'; }, 4500);
+}
+
+// ─── Tab ─────────────────────────────────────────────
+function switchTab(name, btn) {
+  activeTab = name;
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`tab-${name}`).classList.add('active'); btn.classList.add('active');
+  if (name === 'history') renderWeeklyChart();
+  if (name === 'log') renderLog();
+  if (name === 'focus') { renderFocusUI(); renderFocusStats(); }
+  if (name === 'settings') { syncSettingsForm(); buildSettingsAvatarGrid(); }
+}
+
+// ─── Render ───────────────────────────────────────────
+function renderAll() {
+  renderHeader(); renderStats(); renderPlatforms(); renderChart(); renderAchievement(); renderTodos();
+  if (activeTab === 'history') renderWeeklyChart();
+  if (activeTab === 'log') renderLog();
+}
+
+function renderHeader() {
+  if (!currentUser) return;
+  document.getElementById('headerAvatar').textContent = currentUser.avatar;
+  document.getElementById('headerName').textContent = currentUser.name + ' さん';
+  const d = new Date();
+  document.getElementById('dateLabel').textContent = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+  const sb = document.getElementById('streakBadge');
+  if (state.streak > 0) { sb.textContent = `🔥 ${state.streak}日連続`; sb.style.display = 'inline-block'; }
+  else sb.style.display = 'none';
+}
+
+function renderStats() {
+  let totalSec = 0, overCount = 0, savedSec = 0;
+  state.platforms.forEach(p => {
+    const used = liveSeconds(p.id); totalSec += used;
+    if (used >= p.limitMin * 60) overCount++;
+    else savedSec += p.limitMin * 60 - used;
+  });
+  const tm = Math.floor(totalSec / 60), sm = Math.floor(savedSec / 60);
+  const focusActive = state.focusEnd && Date.now() < state.focusEnd;
+  const todayFocus  = (state.focusSessions[todayStr()] || []).length;
+
+  // Weekly usage
+  const weekTotal = Object.entries(state.history).reduce((s,[,u]) => s + Object.values(u).reduce((a,v) => a + v, 0), 0);
+  const weekMin = Math.round(weekTotal / 60);
+  const goalMin = currentUser.weeklyGoalMin;
+  const weekPct = goalMin > 0 ? Math.min(100, Math.round((weekMin / goalMin) * 100)) : null;
+
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card">
+      <div class="val">${Math.floor(tm/60)}h ${tm%60}m</div>
+      <div class="lbl">今日の合計</div>
+    </div>
+    <div class="stat-card">
+      <div class="val" style="color:${overCount > 0 ? 'var(--danger)' : 'var(--success)'}">
+        ${overCount > 0 ? overCount + '個超過' : 'All OK ✓'}
+      </div>
+      <div class="lbl">制限チェック</div>
+    </div>
+    <div class="stat-card">
+      <div class="val" style="color:var(--success)">${sm}分</div>
+      <div class="lbl">節約できた時間</div>
+    </div>
+    <div class="stat-card">
+      <div class="val" style="color:${weekPct !== null && weekPct >= 100 ? 'var(--danger)' : weekPct !== null && weekPct >= 80 ? 'var(--warning)' : 'var(--accent-light)'}">
+        ${weekPct !== null ? weekPct + '%' : weekMin + '分'}
+      </div>
+      <div class="lbl">週間目標${weekPct !== null ? '達成率' : '利用'}</div>
+    </div>
+  `;
+}
+
+function renderPlatforms() {
+  const grid = document.getElementById('platformsGrid');
+  grid.innerHTML = '';
+  const focusActive = state.focusEnd && Date.now() < state.focusEnd;
+
+  state.platforms.forEach(p => {
+    const used  = liveSeconds(p.id);
+    const limit = p.limitMin * 60;
+    const pct   = Math.min(100, Math.round((used / limit) * 100));
+    const active = !!state.activeSessions[p.id];
+    const over   = used >= limit;
+    const warn   = !over && pct >= currentUser.warnPct;
+
+    if (over && active && !alerted.has(p.id)) { alerted.add(p.id); notifyLimit(p.name); }
+    if (warn && active && !warned.has(p.id)) {
+      warned.add(p.id);
+      showToast(`⚠️ ${p.name} が制限の${currentUser.warnPct}%に達しました`, 'warning');
+    }
+    if (over && active && currentUser.autoStop) { stopSession(p.id); return; }
+
+    const locked = focusActive && !active;
+    const card = document.createElement('div');
+    card.className = `platform-card${active ? ' is-active' : ''}${over ? ' is-over' : warn ? ' is-warn' : ''}`;
+
+    let timerClass = 'timer';
+    if (active) timerClass += over ? ' over' : warn ? ' warning' : ' running';
+
+    card.innerHTML = `
+      <div class="card-top">
+        <div class="card-emoji">${p.emoji}</div>
+        <div>
+          <div class="card-name">${p.name}</div>
+          <div class="card-status">
+            ${active ? (over ? '⛔ 制限超過！' : warn ? `⚠️ 残り${p.limitMin - Math.floor(used/60)}分` : '⏱ 計測中...') : locked ? '🎯 集中モード中' : over ? '⛔ 制限超過' : '待機中'}
+          </div>
+        </div>
+      </div>
+      <div class="${timerClass}" data-timer="${p.id}">${fmt(used)}</div>
+      <div class="progress-meta">
+        <span data-used="${p.id}">${Math.floor(used/60)}分使用</span>
+        <span data-pct="${p.id}">${pct}% / ${p.limitMin}分制限</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" data-bar="${p.id}" style="width:${pct}%;background:${barColor(pct)}"></div>
+      </div>
+      <div class="limit-row">
+        <label>制限時間</label>
+        <input class="limit-input" type="number" value="${p.limitMin}" min="1" max="480" onchange="updateLimit('${p.id}',this.value)">
+        <span class="limit-unit">分</span>
+      </div>
+      <div class="btn-row">
+        <button class="btn ${active ? 'btn-stop' : 'btn-start'}${locked ? ' btn-locked' : ''}" onclick="toggle('${p.id}')">
+          ${active ? '⏹ 停止' : '▶ 開始'}
+        </button>
+        <button class="btn btn-del" onclick="removePlatform('${p.id}')">🗑</button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
+  const addCard = document.createElement('div');
+  addCard.className = 'add-card';
+  addCard.innerHTML = `
+    <div class="add-card-title">➕ プラットフォームを追加</div>
+    <div class="add-form">
+      <div class="add-row">
+        <input class="form-input" id="newEmoji" placeholder="絵文字" maxlength="4" value="📱">
+        <input class="form-input" id="newName"  placeholder="アプリ名 (例: LINE)">
+        <input class="form-input" id="newLimit" type="number" placeholder="制限(分)" value="30" min="1">
+      </div>
+      <button class="btn-add" onclick="addPlatform()">追加する</button>
+    </div>
+  `;
+  grid.appendChild(addCard);
+}
+
+function renderChart() {
+  const canvas = document.getElementById('usageChart'), empty = document.getElementById('emptyChart');
+  const labels = [], data = [], colors = [];
+  state.platforms.forEach(p => {
+    const used = liveSeconds(p.id);
+    if (used > 0) { labels.push(`${p.emoji} ${p.name}`); data.push(Math.round(used/60)); colors.push(p.color); }
+  });
+  if (!data.length) {
+    canvas.style.display = 'none'; empty.style.display = 'block';
+    if (chartObj) { chartObj.destroy(); chartObj = null; } return;
+  }
+  canvas.style.display = 'block'; empty.style.display = 'none';
+  if (chartObj) {
+    chartObj.data.labels = labels; chartObj.data.datasets[0].data = data; chartObj.data.datasets[0].backgroundColor = colors;
+    chartObj.update('none'); return;
+  }
+  chartObj = new Chart(canvas, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: '#1e293b', borderWidth: 3, hoverOffset: 8 }] },
+    options: { responsive: true, animation: { duration: 400 },
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 }, padding: 14 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}分` } }
+      }
+    }
+  });
+}
+
+function renderWeeklyChart() {
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    days.push(`${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`);
+  }
+  const today = todayStr();
+  const totals = days.map(day => {
+    const usage = day === today ? state.todayUsage : (state.history[day] || {});
+    let total = 0;
+    state.platforms.forEach(p => {
+      let s = usage[p.id] || 0;
+      if (day === today && state.activeSessions[p.id]) s += Math.floor((Date.now() - state.activeSessions[p.id]) / 1000);
+      total += s;
+    });
+    return Math.round(total / 60);
+  });
+
+  const canvas = document.getElementById('weeklyChart'), empty = document.getElementById('emptyWeekly');
+  const hasData = totals.some(v => v > 0);
+  if (!hasData) {
+    canvas.style.display = 'none'; empty.style.display = 'block';
+    if (weeklyChartObj) { weeklyChartObj.destroy(); weeklyChartObj = null; }
+  } else {
+    canvas.style.display = 'block'; empty.style.display = 'none';
+    const bgColors = days.map(d => d === today ? '#6366f1' : '#334155');
+    const dailyGoal = currentUser.weeklyGoalMin > 0 ? Math.round(currentUser.weeklyGoalMin / 7) : null;
+
+    const annotations = dailyGoal ? {
+      goalLine: {
+        type: 'line', yMin: dailyGoal, yMax: dailyGoal,
+        borderColor: '#f59e0b', borderWidth: 2, borderDash: [6, 4],
+        label: { content: `1日の目標 ${dailyGoal}分`, display: true, color: '#f59e0b', font: { size: 11 }, position: 'end', backgroundColor: 'rgba(0,0,0,0.6)' }
+      }
+    } : {};
+
+    if (weeklyChartObj) {
+      weeklyChartObj.data.labels = days.map(d => d === today ? '今日' : dateLabel(d));
+      weeklyChartObj.data.datasets[0].data = totals;
+      weeklyChartObj.data.datasets[0].backgroundColor = bgColors;
+      weeklyChartObj.options.plugins.annotation.annotations = annotations;
+      weeklyChartObj.update('none');
+    } else {
+      weeklyChartObj = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels: days.map(d => d === today ? '今日' : dateLabel(d)),
+          datasets: [{ label: 'SNS利用時間（分）', data: totals, backgroundColor: bgColors, borderRadius: 6 }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y}分` } },
+            annotation: { annotations }
+          },
+          scales: {
+            x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+            y: { ticks: { color: '#94a3b8', callback: v => v + '分' }, grid: { color: '#273549' }, beginAtZero: true }
+          }
+        }
+      });
+    }
+  }
+  renderHistoryDetail(days);
+}
+
+function renderHistoryDetail(days) {
+  const el = document.getElementById('historyDetail'); el.innerHTML = '';
+  const today = todayStr();
+  [...days].reverse().forEach(day => {
+    const usage = day === today ? { ...state.todayUsage } : (state.history[day] || {});
+    if (!Object.values(usage).some(v => v > 0)) return;
+    const total = Object.values(usage).reduce((s,v) => s + v, 0);
+    const totalMin = Math.round(total / 60);
+    const allOk = state.platforms.every(p => (usage[p.id] || 0) < p.limitMin * 60);
+    const div = document.createElement('div'); div.className = 'history-day';
+    div.innerHTML = `
+      <div class="history-day-header">
+        <span style="font-weight:700;font-size:0.9rem;">${day === today ? '今日' : dateLabel(day)}</span>
+        <span style="font-size:0.8rem;color:var(--muted);">合計 ${Math.floor(totalMin/60)}h ${totalMin%60}m</span>
+        <span style="font-size:0.78rem;color:${allOk ? 'var(--success)' : 'var(--danger)'};">${allOk ? '✓ 制限内' : '⚠ 超過あり'}</span>
+      </div>
+      ${state.platforms.map(p => {
+        const secs = usage[p.id] || 0; if (!secs) return '';
+        const min = Math.round(secs / 60);
+        const pct = Math.min(100, Math.round((secs / (p.limitMin * 60)) * 100));
+        return `<div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.4rem;font-size:0.78rem;">
+          <span>${p.emoji}</span><span style="min-width:80px;color:var(--muted)">${p.name}</span>
+          <div style="flex:1;height:6px;background:var(--surface2);border-radius:99px;overflow:hidden;">
+            <div style="height:100%;width:${pct}%;background:${barColor(pct)};border-radius:99px;"></div>
+          </div>
+          <span style="min-width:44px;text-align:right;color:var(--accent-light)">${min}分</span>
+        </div>`;
+      }).join('')}
+    `;
+    el.appendChild(div);
+  });
+  if (!el.innerHTML) el.innerHTML = '<div class="empty-chart">履歴データがありません</div>';
+}
+
+function renderAchievement() {
+  const banner = document.getElementById('achievementBanner');
+  let overCount = 0, savedMin = 0, hasUsage = false;
+  state.platforms.forEach(p => {
+    const used = liveSeconds(p.id); if (used > 0) hasUsage = true;
+    if (used >= p.limitMin * 60) overCount++;
+    else savedMin += Math.floor((p.limitMin * 60 - used) / 60);
+  });
+  if (!hasUsage) { banner.classList.remove('show'); return; }
+  banner.classList.add('show');
+  const icon = document.getElementById('achIcon'), text = document.getElementById('achText');
+  if (overCount === 0) {
+    icon.textContent = '🎉';
+    text.innerHTML = `<strong>すべて制限内！</strong><br>今日は約 <strong>${savedMin}分</strong> を他のことに使えます！`;
+    banner.style.borderColor = '#2563eb';
+  } else {
+    icon.textContent = '⚠️';
+    text.innerHTML = `<strong>${overCount}個のSNSが制限超過しています。</strong><br>少しスマホを置いてみましょう 💪`;
+    banner.style.borderColor = 'var(--danger)';
+  }
+}
+
+// ─── Todo ─────────────────────────────────────────────
+function renderTodos() {
+  const el = document.getElementById('todoCard'); if (!el) return;
+  const done = state.todos.filter(t => t.done).length;
+  el.innerHTML = `
+    <div class="todo-add-row">
+      <input class="todo-input" id="todoInput" placeholder="やること（例: 読書30分）" onkeydown="if(event.key==='Enter')addTodo()">
+      <button class="btn-add" onclick="addTodo()" style="padding:0.55rem 0.85rem;white-space:nowrap;font-size:0.8rem;">追加</button>
+    </div>
+    <div class="todo-list">
+      ${state.todos.length === 0
+        ? `<div class="todo-empty">SNSの代わりにやることを追加しよう！<br><span style="font-size:0.75rem;color:var(--muted)">例: 読書・筋トレ・プログラミング</span></div>`
+        : state.todos.map((t,i) => `
+          <div class="todo-item${t.done ? ' done' : ''}">
+            <div class="todo-check" onclick="toggleTodo(${i})">${t.done ? '✓' : ''}</div>
+            <span class="todo-text">${escapeHtml(t.text)}</span>
+            <button class="todo-del" onclick="deleteTodo(${i})">✕</button>
+          </div>`).join('')}
+    </div>
+    ${state.todos.length > 0 ? `<div style="font-size:0.72rem;color:var(--muted);margin-top:0.5rem;text-align:right;">${done}/${state.todos.length} 完了</div>` : ''}
+  `;
+}
+function escapeHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function addTodo() {
+  const input = document.getElementById('todoInput'), text = input.value.trim();
+  if (!text) return;
+  state.todos.push({ id: Date.now(), text, done: false }); input.value = ''; save(); renderTodos();
+}
+function toggleTodo(i) { state.todos[i].done = !state.todos[i].done; save(); renderTodos(); }
+function deleteTodo(i) { state.todos.splice(i, 1); save(); renderTodos(); }
+
+// ─── Log ──────────────────────────────────────────────
+function renderLog() {
+  const el = document.getElementById('logList'); if (!el) return;
+  const logs = (state.sessionLogs[todayStr()] || []).slice().reverse();
+  if (!logs.length) { el.innerHTML = '<div class="log-empty">今日のセッションログはまだありません</div>'; return; }
+  el.innerHTML = logs.map(log => {
+    const st = new Date(log.start);
+    const hh = st.getHours(), mm = String(st.getMinutes()).padStart(2,'0');
+    const dur = Math.round(log.duration / 60);
+    return `<div class="log-item">
+      <span class="log-emoji">${log.emoji}</span>
+      <span class="log-name">${log.name}</span>
+      <span class="log-time">${hh}:${mm} に開始</span>
+      <span class="log-dur">${dur < 1 ? '< 1' : dur}分</span>
+    </div>`;
+  }).join('');
+}
+
+// ─── Tick ─────────────────────────────────────────────
+function tick() {
+  const activeIds = Object.keys(state.activeSessions);
+  if (!activeIds.length) return;
+  activeIds.forEach(id => {
+    const p = state.platforms.find(p => p.id === id); if (!p) return;
+    const used  = liveSeconds(id);
+    const limit = p.limitMin * 60;
+    const pct   = Math.min(100, Math.round((used / limit) * 100));
+    const over  = used >= limit;
+    const warn  = !over && pct >= currentUser.warnPct;
+
+    if (over && !alerted.has(id)) { alerted.add(id); notifyLimit(p.name); }
+    if (warn && !warned.has(id))  { warned.add(id); showToast(`⚠️ ${p.name} が制限の${currentUser.warnPct}%に達しました`, 'warning'); }
+    if (over && currentUser.autoStop) { stopSession(id); renderAll(); return; }
+
+    let timerClass = 'timer running'; if (over) timerClass += ' over'; else if (warn) timerClass += ' warning';
+    const timerEl = document.querySelector(`[data-timer="${id}"]`);
+    if (timerEl) { timerEl.textContent = fmt(used); timerEl.className = timerClass; }
+    const barEl  = document.querySelector(`[data-bar="${id}"]`);
+    if (barEl)   { barEl.style.width = `${pct}%`; barEl.style.backgroundColor = barColor(pct); }
+    const usedEl = document.querySelector(`[data-used="${id}"]`);
+    if (usedEl)  usedEl.textContent = `${Math.floor(used/60)}分使用`;
+    const pctEl  = document.querySelector(`[data-pct="${id}"]`);
+    if (pctEl)   pctEl.textContent = `${pct}% / ${p.limitMin}分制限`;
+
+    // ステータステキスト更新
+    const cardEl = document.querySelector(`[data-timer="${id}"]`)?.closest('.platform-card');
+    const statusEl = cardEl?.querySelector('.card-status');
+    if (statusEl) statusEl.textContent = over ? '⛔ 制限超過！' : warn ? `⚠️ 残り${p.limitMin - Math.floor(used/60)}分` : '⏱ 計測中...';
+  });
+  renderStats();
+}
+
+// ─── Actions ──────────────────────────────────────────
+function updateLimit(id, val) {
+  const p = state.platforms.find(p => p.id === id);
+  if (p) { p.limitMin = Math.max(1, parseInt(val) || 30); save(); }
+  renderStats(); renderAchievement();
+}
+function removePlatform(id) {
+  if (state.activeSessions[id]) stopSession(id);
+  state.platforms = state.platforms.filter(p => p.id !== id);
+  delete state.todayUsage[id]; alerted.delete(id); warned.delete(id);
+  save(); renderAll();
+}
+function addPlatform() {
+  const emoji = document.getElementById('newEmoji').value.trim() || '📱';
+  const name  = document.getElementById('newName').value.trim();
+  const limitMin = parseInt(document.getElementById('newLimit').value) || 30;
+  if (!name) { showToast('アプリ名を入力してください'); return; }
+  const id = 'c' + Date.now();
+  const color = CARD_COLORS[state.platforms.length % CARD_COLORS.length];
+  state.platforms.push({ id, name, emoji, limitMin, color });
+  save(); renderAll();
+}
+function confirmReset() {
+  if (!confirm('今日のデータをリセットしますか？')) return;
+  state.todayUsage = {}; state.activeSessions = {};
+  state.sessionLogs[todayStr()] = [];
+  alerted.clear(); warned.clear();
+  if (chartObj) { chartObj.destroy(); chartObj = null; }
+  save(); renderAll();
+}
+
+// ─── Init ─────────────────────────────────────────────
+buildLoginAvatarGrid();
+loadUser();
+if (currentUser) {
+  showApp();
+} else {
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+
+setInterval(tick, 1000);
+setInterval(() => { if (Object.keys(state.activeSessions).length > 0) renderChart(); }, 10000);
+</script>
+</body>
+</html>
